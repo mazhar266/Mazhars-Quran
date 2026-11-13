@@ -85,14 +85,7 @@ git push origin v1.0.0
 
 The tag sets the version shown in Settings. Between releases the version is the `app` entry in `gradle/libs.versions.toml`.
 
-**Signing.** Android only installs an update over an existing app if both are signed with the same key. Until the repository has a release key, each CI build is signed with a throwaway debug key, so those APKs cannot update one another. To sign releases properly, create a keystore once, keep it safe, and add these repository secrets:
-
-| Secret | Value |
-|---|---|
-| `RELEASE_KEYSTORE_BASE64` | the keystore file, base64-encoded |
-| `RELEASE_KEYSTORE_PASSWORD` | the keystore password |
-| `RELEASE_KEY_ALIAS` | the key's alias |
-| `RELEASE_KEY_PASSWORD` | the key's password |
+The APKs are signed with the build machine's debug key, not a release key. Each CI build therefore has a different signature, and Android will not install one over another: uninstall the old version before installing a new one.
 
 ## Tests
 

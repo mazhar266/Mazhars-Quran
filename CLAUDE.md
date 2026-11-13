@@ -16,7 +16,7 @@ Gradle needs JDK 17+. If `java` is not on PATH, set `JAVA_HOME` to Android Studi
 ./gradlew :shared:jvmTest --tests "*ReducerTest.pinCreatesSectionAtTop*"  # one test
 ./gradlew :androidApp:assembleDebug                         # build the APK (compiles native code)
 ./gradlew :androidApp:installDebug                          # build and install on a device/emulator
-./gradlew :androidApp:assembleRelease                       # what CI builds; debug-signed unless RELEASE_KEYSTORE_FILE is set
+./gradlew :androidApp:assembleRelease                       # what CI builds; signed with the debug key
 ./gradlew :stt-android:assembleDebugAndroidTest             # on-device speech test APK
 ```
 

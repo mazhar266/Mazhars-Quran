@@ -18,25 +18,12 @@ android {
         versionName = (findProperty("appVersionName") as String?) ?: libs.versions.app.get()
     }
 
-    // Release signing comes from the environment (see .github/workflows/release.yml and the README).
-    // Without it, release builds are signed with the debug key so that the build still works.
-    val releaseKeystore: String? = System.getenv("RELEASE_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
-    signingConfigs {
-        if (releaseKeystore != null) {
-            create("release") {
-                storeFile = file(releaseKeystore)
-                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
-            }
-        }
-    }
-
     buildTypes {
         release {
             // Not minified: the JNI entry points and serializers are looked up by name.
             isMinifyEnabled = false
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // No release key is set up: APKs are signed with the build machine's debug key.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
