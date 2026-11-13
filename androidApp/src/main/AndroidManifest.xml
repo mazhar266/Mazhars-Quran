@@ -3,6 +3,8 @@
 
     <!-- Only to download the optional AI and voice models when switched on in Settings. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- To warn before a large download would use mobile data. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Used only while the mic button is active; audio never leaves the device. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

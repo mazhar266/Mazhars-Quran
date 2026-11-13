@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -14,6 +15,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -29,6 +34,22 @@ internal fun SettingsScreen(
     statuses: Map<Feature, FeatureStatus>,
     onBack: () -> Unit,
 ) {
+    // Set while asking whether a large download may use mobile data.
+    var asking by remember { mutableStateOf<Feature?>(null) }
+    fun toggle(feature: Feature, on: Boolean) {
+        if (on && features.wouldUseMobileData(feature)) asking = feature
+        else features.setEnabled(feature, on)
+    }
+    asking?.let { feature ->
+        MobileDataDialog(
+            feature = feature,
+            size = features.downloadSize(feature),
+            onUseMobileData = { features.setEnabled(feature, true, allowMobileData = true); asking = null },
+            onWaitForWifi = { features.setEnabled(feature, true, allowMobileData = false); asking = null },
+            onCancel = { asking = null },
+        )
+    }
+
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("‹ Surahs") }
@@ -37,7 +58,7 @@ internal fun SettingsScreen(
         HorizontalDivider()
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             for (feature in Feature.entries) {
-                FeatureRow(feature, statuses[feature] ?: FeatureStatus.Off(downloaded = false), features)
+                FeatureRow(feature, statuses[feature] ?: FeatureStatus.Off(downloaded = false), features, ::toggle)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
             Text(
@@ -52,7 +73,40 @@ internal fun SettingsScreen(
 }
 
 @Composable
-private fun FeatureRow(feature: Feature, status: FeatureStatus, features: FeatureController) {
+private fun MobileDataDialog(
+    feature: Feature,
+    size: String,
+    onUseMobileData: () -> Unit,
+    onWaitForWifi: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("Download $size on mobile data?") },
+        text = {
+            Text(
+                "${feature.title} needs a $size download and you're not on Wi-Fi. " +
+                    "Using mobile data may cost money or use up your allowance.",
+            )
+        },
+        // Three choices, stacked so none of them wraps or is orphaned on its own row.
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = onWaitForWifi) { Text("Wait for Wi-Fi") }
+                TextButton(onClick = onUseMobileData) { Text("Use mobile data") }
+                TextButton(onClick = onCancel) { Text("Cancel") }
+            }
+        },
+    )
+}
+
+@Composable
+private fun FeatureRow(
+    feature: Feature,
+    status: FeatureStatus,
+    features: FeatureController,
+    onToggle: (Feature, Boolean) -> Unit,
+) {
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 12.dp)) {
@@ -64,7 +118,7 @@ private fun FeatureRow(feature: Feature, status: FeatureStatus, features: Featur
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
-            Switch(checked = status.isOn, onCheckedChange = { features.setEnabled(feature, it) })
+            Switch(checked = status.isOn, onCheckedChange = { onToggle(feature, it) })
         }
 
         val size = features.downloadSize(feature)
@@ -96,9 +150,14 @@ private fun FeatureRow(feature: Feature, status: FeatureStatus, features: Featur
                 } else {
                     LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
                 }
+                if (status.waitingForWifi) {
+                    TextButton(onClick = { features.setEnabled(feature, true, allowMobileData = true) }) {
+                        Text("Use mobile data instead")
+                    }
+                }
             }
             FeatureStatus.Preparing -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
-            is FeatureStatus.Failed -> TextButton(onClick = { features.setEnabled(feature, true) }) { Text("Try again") }
+            is FeatureStatus.Failed -> TextButton(onClick = { onToggle(feature, true) }) { Text("Try again") }
             is FeatureStatus.Off -> if (status.downloaded) {
                 TextButton(onClick = { features.deleteDownload(feature) }) { Text("Delete download") }
             }

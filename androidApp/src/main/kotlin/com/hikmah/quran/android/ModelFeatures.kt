@@ -2,6 +2,7 @@ package com.hikmah.quran.android
 
 import android.app.DownloadManager
 import android.content.Context
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.util.Log
 import com.hikmah.quran.features.Feature
@@ -42,7 +43,8 @@ class ModelFeatures private constructor(private val context: Context) : FeatureC
         val bytes: Long,
         val sha256: String,
         val sizeLabel: String,
-        val wifiOnly: Boolean,
+        /** Large enough that the user is asked before it goes over mobile data. */
+        val askOnMobileData: Boolean,
     )
 
     private val specs = mapOf(
@@ -53,7 +55,7 @@ class ModelFeatures private constructor(private val context: Context) : FeatureC
             bytes = 1_117_320_736,
             sha256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
             sizeLabel = "1.1 GB",
-            wifiOnly = true,
+            askOnMobileData = true,
         ),
         Feature.VOICE to Spec(
             fileName = "ggml-base-q5_1.bin",
@@ -62,12 +64,13 @@ class ModelFeatures private constructor(private val context: Context) : FeatureC
             bytes = 59_707_625,
             sha256 = "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898",
             sizeLabel = "57 MB",
-            wifiOnly = false,
+            askOnMobileData = false,
         ),
     )
 
     private val prefs = context.getSharedPreferences("features", Context.MODE_PRIVATE)
     private val downloads = context.getSystemService(DownloadManager::class.java)
+    private val connectivity = context.getSystemService(ConnectivityManager::class.java)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val jobs = HashMap<Feature, Job>()
 
@@ -94,10 +97,18 @@ class ModelFeatures private constructor(private val context: Context) : FeatureC
 
     override fun downloadSize(feature: Feature): String = specs.getValue(feature).sizeLabel
 
+    override fun wouldUseMobileData(feature: Feature): Boolean =
+        specs.getValue(feature).askOnMobileData && file(feature)?.exists() != true &&
+            connectivity.isActiveNetworkMetered
+
     @Synchronized
-    override fun setEnabled(feature: Feature, enabled: Boolean) {
+    override fun setEnabled(feature: Feature, enabled: Boolean, allowMobileData: Boolean) {
         prefs.edit().putBoolean(enabledKey(feature), enabled).apply()
         if (enabled) {
+            // A running download cannot change its network rule: start it again if the choice changed.
+            val mobileData = allowMobileData || !specs.getValue(feature).askOnMobileData
+            if (prefs.getBoolean(mobileDataKey(feature), false) != mobileData) cancelDownload(feature)
+            prefs.edit().putBoolean(mobileDataKey(feature), mobileData).apply()
             start(feature)
         } else {
             jobs.remove(feature)?.cancel()
@@ -142,13 +153,14 @@ class ModelFeatures private constructor(private val context: Context) : FeatureC
     /** Runs (or re-attaches to) the system download and suspends until it finishes. */
     private suspend fun download(feature: Feature, spec: Spec): File {
         val partial = File(modelDirectory() ?: throw IOException("No app storage available"), spec.fileName + ".part")
+        val mobileData = prefs.getBoolean(mobileDataKey(feature), !spec.askOnMobileData)
         var id = prefs.getLong(downloadKey(feature), NO_DOWNLOAD)
         if (id == NO_DOWNLOAD || query(id) == null) {
             partial.delete()
             val request = DownloadManager.Request(Uri.parse(spec.url))
                 .setTitle("Quran: ${feature.title}")
                 .setDestinationInExternalFilesDir(context, null, "$MODELS/${partial.name}")
-                .setAllowedOverMetered(!spec.wifiOnly)
+                .setAllowedOverMetered(mobileData)
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
             id = downloads.enqueue(request)
             prefs.edit().putLong(downloadKey(feature), id).apply()
@@ -162,8 +174,17 @@ class ModelFeatures private constructor(private val context: Context) : FeatureC
                     cancelDownload(feature)
                     throw IOException(failureText(state.reason))
                 }
-                DownloadManager.STATUS_PAUSED ->
-                    set(feature, FeatureStatus.Downloading(progress, pauseText(state.reason)))
+                DownloadManager.STATUS_PAUSED -> {
+                    // The system reports a Wi-Fi-only download on mobile data either as
+                    // "queued for Wi-Fi" or just "waiting for network".
+                    val wifi = !mobileData && (state.reason == DownloadManager.PAUSED_QUEUED_FOR_WIFI ||
+                        connectivity.isActiveNetworkMetered)
+                    set(feature, FeatureStatus.Downloading(progress, if (wifi) "waiting for Wi-Fi" else pauseText(state.reason), wifi))
+                }
+                DownloadManager.STATUS_PENDING -> {
+                    val wifi = !mobileData && connectivity.isActiveNetworkMetered
+                    set(feature, FeatureStatus.Downloading(progress, if (wifi) "waiting for Wi-Fi" else null, wifi))
+                }
                 else -> set(feature, FeatureStatus.Downloading(progress))
             }
             delay(500)
@@ -254,6 +275,7 @@ class ModelFeatures private constructor(private val context: Context) : FeatureC
     private fun file(feature: Feature): File? = modelDirectory()?.let { File(it, specs.getValue(feature).fileName) }
     private fun enabledKey(feature: Feature) = "enabled_${feature.name}"
     private fun downloadKey(feature: Feature) = "download_${feature.name}"
+    private fun mobileDataKey(feature: Feature) = "mobile_data_${feature.name}"
 
     companion object {
         private const val TAG = "QuranFeatures"

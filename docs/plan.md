@@ -75,7 +75,7 @@ Measured on the x86_64 emulator with the synthetic clips: base transcribes a com
 
 Both features are off by default; the app is then a plain reader with no command bar. Settings has two switches:
 
-- **AI commands** downloads the Qwen model (1.1 GB, Wi-Fi only) and shows the command bar.
+- **AI commands** downloads the Qwen model (1.1 GB) and shows the command bar. On mobile data the app asks first: use mobile data, wait for Wi-Fi, or cancel. Mobile data is never used for this download without that yes; if Wi-Fi drops part-way the download waits, with a "Use mobile data instead" button (which restarts it).
 - **Voice input** downloads the Whisper base model (57 MB) and shows the mic button.
 
 `ModelFeatures` (androidApp) uses the system DownloadManager, so a download continues if the app is closed. Each file is pinned to an exact Hugging Face revision and verified by size and SHA-256 before use. Files live in the app's external files folder under `models/`. Switching a feature off unloads the model from memory and offers to delete the download. iOS has no implementation yet.
