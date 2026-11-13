@@ -16,6 +16,7 @@ Gradle needs JDK 17+. If `java` is not on PATH, set `JAVA_HOME` to Android Studi
 ./gradlew :shared:jvmTest --tests "*ReducerTest.pinCreatesSectionAtTop*"  # one test
 ./gradlew :androidApp:assembleDebug                         # build the APK (compiles native code)
 ./gradlew :androidApp:installDebug                          # build and install on a device/emulator
+./gradlew :androidApp:assembleRelease                       # what CI builds; debug-signed unless RELEASE_KEYSTORE_FILE is set
 ./gradlew :stt-android:assembleDebugAndroidTest             # on-device speech test APK
 ```
 
@@ -81,6 +82,14 @@ Three things must stay in sync when the command vocabulary changes: the grammar 
 - Strings cross JNI as UTF-8 byte arrays, not `jstring`, to avoid modified-UTF-8 problems with model output.
 - `llm_jni.cpp` keeps the tokens of the previous prompt and reuses the shared prefix in the KV cache, so after the one-off `warmUp()` only the user's sentence is evaluated. All native LLM calls are serialised on one dispatcher in `LlamaEngine`.
 - `stt_jni.cpp` sets `audio_ctx` to 768 (half the default window). Tightening it to the clip length was faster but produced garbled output and 20–30 s retries; do not lower it without re-running `WhisperModelTest` on a device.
+
+### Reader navigation
+
+`LayoutState.openAyah` is the ayah to show and `jump` is a counter bumped on every `OpenSurah`/`GoToAyah`, so the scroll effect in `Ayahs` (`ui/App.kt`) re-runs even for a repeated request. Scrolling needs the paragraph's `TextLayoutResult` to find the ayah's line, which is why paragraph items have no top padding. `rejection()` in `Reducer.kt` supplies the user-facing reason when an action cannot be applied as asked; the reducer itself stays total. Reader position is deliberately not persisted.
+
+### Versioning and release
+
+The app version is `app` in `gradle/libs.versions.toml`; CI overrides it with `-PappVersionName` (from a `v*` tag) and `-PappVersionCode` (run number). `.github/workflows/release.yml` tests on every push/PR, builds the release APK on `main`, and publishes a GitHub Release on a tag. It clones llama.cpp and whisper.cpp at the tags in its `env` block: keep those in step with the tags named in the two native `build.gradle.kts`/`CMakeLists.txt` files. The About section in Settings (`ui/AppInfo.kt`) shows the version passed in from `MainActivity`.
 
 ### Platform notes
 

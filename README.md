@@ -13,6 +13,7 @@ Built with Kotlin Multiplatform and Compose Multiplatform. Android is the workin
 
 - **Reader**: all 114 surahs in the KFGQPC Hafs Uthmanic font, with ayahs flowing continuously like a printed mushaf. No translation, no audio, no accounts.
 - **Pinned surahs**: tap the star on a surah, or tell the app what you recite and when. "Every night I read Surah Mulk" creates a "Night" section; "on Fridays I read Al-Kahf" creates "Friday".
+- **Go to an ayah**: "go to surah Fatiha ayat 3" opens the surah at that ayah and highlights it; inside a surah, "go to ayah 255" scrolls there; "go to the main screen" returns to the list. "2:255", "verse twenty one" and "the third verse" work too.
 - **Text size and theme**: nine text sizes (A− / A+ buttons, or "make the font a bit bigger", "the biggest"), and light, dark and sepia themes ("dark mode", "it's too bright").
 - **AI commands** (optional, 1.1 GB download): a small language model understands free phrasing such as "take Surah Mulk off my list".
 - **Voice input** (optional, 57 MB download): tap the mic, speak, tap again.
@@ -29,9 +30,9 @@ mic → speech-to-text → keyword rules → (language model) → action → lay
 2. Otherwise the model (Qwen2.5 1.5B Instruct, run by llama.cpp) classifies the intent. Its output is constrained by a grammar to a fixed set of actions, and any surah name it did not copy from what was said is discarded.
 3. If the two disagree, or a name only matched approximately, the app asks "Did you mean …?" before changing anything. Every change can be undone.
 
-The model can only ever emit one of a small set of typed actions (pin, unpin, open, text size, theme, reset). It never generates UI and never touches the Quran text.
+The model can only ever emit one of a small set of typed actions (pin, unpin, open a surah or ayah, close, text size, theme, reset). It never generates UI and never touches the Quran text.
 
-On the project's eval set of 89 transcripts, the rules alone get 83 right and rules plus model get 86. The set is small and was used while tuning, so treat those numbers as a regression check, not as real-world accuracy.
+On the project's eval set of 100 transcripts, the rules alone get 94 right and rules plus model get 95. The set is small and was used while tuning, so treat those numbers as a regression check, not as real-world accuracy.
 
 ## Project layout
 
@@ -69,6 +70,29 @@ Then build and install the debug app:
 The first build compiles both native libraries for `arm64-v8a` and `x86_64` and takes a few minutes.
 
 The model files are not part of the build. The app downloads them when a feature is switched on in Settings, from fixed Hugging Face revisions, and checks each against a pinned SHA-256 before using it.
+
+## Releases
+
+The workflow in `.github/workflows/release.yml` runs the unit tests on every push and pull request, builds the APK on pushes to `main` (kept as a workflow artifact), and publishes a GitHub Release with the APK when a version tag is pushed:
+
+```bash
+git tag v1.0.0
+```
+
+```bash
+git push origin v1.0.0
+```
+
+The tag sets the version shown in Settings. Between releases the version is the `app` entry in `gradle/libs.versions.toml`.
+
+**Signing.** Android only installs an update over an existing app if both are signed with the same key. Until the repository has a release key, each CI build is signed with a throwaway debug key, so those APKs cannot update one another. To sign releases properly, create a keystore once, keep it safe, and add these repository secrets:
+
+| Secret | Value |
+|---|---|
+| `RELEASE_KEYSTORE_BASE64` | the keystore file, base64-encoded |
+| `RELEASE_KEYSTORE_PASSWORD` | the keystore password |
+| `RELEASE_KEY_ALIAS` | the key's alias |
+| `RELEASE_KEY_PASSWORD` | the key's password |
 
 ## Tests
 

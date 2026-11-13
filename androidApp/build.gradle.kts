@@ -13,8 +13,31 @@ android {
         applicationId = "fi.mazhar.quran.ai"
         minSdk = libs.versions.androidMinSdk.get().toInt()
         targetSdk = libs.versions.androidTargetSdk.get().toInt()
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI passes -PappVersionName (from the release tag) and -PappVersionCode (the run number).
+        versionCode = (findProperty("appVersionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("appVersionName") as String?) ?: libs.versions.app.get()
+    }
+
+    // Release signing comes from the environment (see .github/workflows/release.yml and the README).
+    // Without it, release builds are signed with the debug key so that the build still works.
+    val releaseKeystore: String? = System.getenv("RELEASE_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Not minified: the JNI entry points and serializers are looked up by name.
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+        }
     }
 
     compileOptions {

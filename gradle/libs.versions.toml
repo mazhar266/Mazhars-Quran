@@ -1,4 +1,6 @@
 [versions]
+# The app's own version. Releases built from a v* tag take the tag's number instead.
+app = "1.0.0"
 kotlin = "2.4.20"
 agp = "9.1.1"
 compose = "1.12.1"

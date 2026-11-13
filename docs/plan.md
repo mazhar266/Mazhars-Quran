@@ -80,6 +80,17 @@ Both features are off by default; the app is then a plain reader with no command
 
 `ModelFeatures` (androidApp) uses the system DownloadManager, so a download continues if the app is closed. Each file is pinned to an exact Hugging Face revision and verified by size and SHA-256 before use. Files live in the app's external files folder under `models/`. Switching a feature off unloads the model from memory and offers to delete the download. iOS has no implementation yet.
 
+## Going to an ayah (as built)
+
+- `OpenSurah(id, ayah)` opens a surah at an ayah; `GoToAyah(ayah)` moves within the open surah; `CloseSurah` is also "the main screen". `LayoutState.openAyah` holds the target and `jump` counts requests, so asking for the same ayah again scrolls back. Neither is saved.
+- The reader finds the paragraph containing the ayah, uses that paragraph's text layout to find the line the ayah starts on, scrolls it to the top and tints the ayah.
+- `findAyahReference` reads "ayat 3", "ayah number 255", "verse twenty one", "the third verse", "5th ayah" and "2:255". The colon form needs a navigation word so that clock times are not taken for references.
+- An ayah the surah does not have is ignored by the reducer and explained to the user (`rejection`), e.g. "Al-Fatihah has 7 ayahs."
+
+## Releases (as built)
+
+`.github/workflows/release.yml`: unit tests on every push and pull request; release APK built on pushes to `main`; a `v*` tag publishes a GitHub Release with the APK and its SHA-256. The tag sets `versionName`, the run number sets `versionCode`. Signing uses four repository secrets if present, otherwise the debug key (see the README). The release build is not minified.
+
 ## Text size (as built)
 
 Nine steps (18 to 52 sp for ayah text, 28 sp by default), saved with the layout. Changed three ways:
