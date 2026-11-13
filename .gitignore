@@ -1,0 +1,12 @@
+.gradle/
+.kotlin/
+build/
+.cxx/
+local.properties
+.idea/
+*.iml
+.DS_Store
+# Downloaded models are never committed
+*.gguf
+*.bin
+.local/

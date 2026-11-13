@@ -1,0 +1,2 @@
+# Verbatim Tanzil text: never normalise line endings (checksum-tested).
+shared/src/commonMain/composeResources/files/quran-uthmani.txt -text
