@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.hikmah.quran.android"
+    namespace = "fi.mazhar.quran.ai"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.hikmah.quran"
+        applicationId = "fi.mazhar.quran.ai"
         minSdk = libs.versions.androidMinSdk.get().toInt()
         targetSdk = libs.versions.androidTargetSdk.get().toInt()
         versionCode = 1

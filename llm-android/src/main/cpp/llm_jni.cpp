@@ -1,4 +1,4 @@
-// JNI bridge between com.hikmah.quran.llm.LlamaEngine and llama.cpp (tag b12360).
+// JNI bridge between fi.mazhar.quran.ai.llm.LlamaEngine and llama.cpp (tag b12360).
 //
 // One model, one context, one sequence. Each call renders the chat template,
 // reuses whatever prefix of the prompt is already in the context (the long
@@ -155,7 +155,7 @@ std::string complete(Engine &engine, const std::string &system, const std::strin
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_com_hikmah_quran_llm_LlamaEngine_nativeLoad(JNIEnv *env, jclass, jbyteArray path, jint threads,
+Java_fi_mazhar_quran_ai_llm_LlamaEngine_nativeLoad(JNIEnv *env, jclass, jbyteArray path, jint threads,
                                                   jint contextSize) {
     static std::once_flag once;
     std::call_once(once, [] {
@@ -189,7 +189,7 @@ Java_com_hikmah_quran_llm_LlamaEngine_nativeLoad(JNIEnv *env, jclass, jbyteArray
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_hikmah_quran_llm_LlamaEngine_nativeComplete(JNIEnv *env, jclass, jlong handle, jbyteArray system,
+Java_fi_mazhar_quran_ai_llm_LlamaEngine_nativeComplete(JNIEnv *env, jclass, jlong handle, jbyteArray system,
                                                       jbyteArray user, jbyteArray grammar, jint maxTokens) {
     auto *engine = reinterpret_cast<Engine *>(handle);
     if (engine == nullptr) return toBytes(env, "");
@@ -199,7 +199,7 @@ Java_com_hikmah_quran_llm_LlamaEngine_nativeComplete(JNIEnv *env, jclass, jlong 
 }
 
 JNIEXPORT void JNICALL
-Java_com_hikmah_quran_llm_LlamaEngine_nativeFree(JNIEnv *, jclass, jlong handle) {
+Java_fi_mazhar_quran_ai_llm_LlamaEngine_nativeFree(JNIEnv *, jclass, jlong handle) {
     auto *engine = reinterpret_cast<Engine *>(handle);
     if (engine == nullptr) return;
     llama_free(engine->ctx);

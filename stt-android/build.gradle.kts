@@ -9,7 +9,7 @@ plugins {
 val whisperCppDir = rootDir.resolve(".local/whisper.cpp").absolutePath.replace('\\', '/')
 
 android {
-    namespace = "com.hikmah.quran.stt"
+    namespace = "fi.mazhar.quran.ai.stt"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
     ndkVersion = "28.2.13676358"
 

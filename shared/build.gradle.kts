@@ -10,7 +10,7 @@ plugins {
 
 kotlin {
     android {
-        namespace = "com.hikmah.quran.shared"
+        namespace = "fi.mazhar.quran.ai.shared"
         compileSdk = libs.versions.androidCompileSdk.get().toInt()
         minSdk = libs.versions.androidMinSdk.get().toInt()
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -45,5 +45,5 @@ kotlin {
 }
 
 compose.resources {
-    packageOfResClass = "com.hikmah.quran.generated"
+    packageOfResClass = "fi.mazhar.quran.ai.generated"
 }

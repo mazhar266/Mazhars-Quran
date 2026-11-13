@@ -9,7 +9,7 @@ plugins {
 val llamaCppDir = rootDir.resolve(".local/llama.cpp").absolutePath.replace('\\', '/')
 
 android {
-    namespace = "com.hikmah.quran.llm"
+    namespace = "fi.mazhar.quran.ai.llm"
     compileSdk = libs.versions.androidCompileSdk.get().toInt()
     ndkVersion = "28.2.13676358"
 

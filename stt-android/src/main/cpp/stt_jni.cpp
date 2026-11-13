@@ -1,4 +1,4 @@
-// JNI bridge between com.hikmah.quran.stt.WhisperModel and whisper.cpp (v1.9.5).
+// JNI bridge between fi.mazhar.quran.ai.stt.WhisperModel and whisper.cpp (v1.9.5).
 // Transcribes one short utterance (16 kHz mono float PCM) at a time.
 
 #include <jni.h>
@@ -41,7 +41,7 @@ std::mutex gMutex; // a whisper context handles one transcription at a time
 extern "C" {
 
 JNIEXPORT jlong JNICALL
-Java_com_hikmah_quran_stt_WhisperModel_nativeLoad(JNIEnv *env, jclass, jbyteArray path) {
+Java_fi_mazhar_quran_ai_stt_WhisperModel_nativeLoad(JNIEnv *env, jclass, jbyteArray path) {
     static std::once_flag once;
     std::call_once(once, [] { whisper_log_set(logCallback, nullptr); });
 
@@ -54,7 +54,7 @@ Java_com_hikmah_quran_stt_WhisperModel_nativeLoad(JNIEnv *env, jclass, jbyteArra
 
 // Returns the transcript as UTF-8, or an empty array when nothing was said.
 JNIEXPORT jbyteArray JNICALL
-Java_com_hikmah_quran_stt_WhisperModel_nativeTranscribe(JNIEnv *env, jclass, jlong handle, jfloatArray samples,
+Java_fi_mazhar_quran_ai_stt_WhisperModel_nativeTranscribe(JNIEnv *env, jclass, jlong handle, jfloatArray samples,
                                                          jint threads, jbyteArray language, jbyteArray hint) {
     auto *context = reinterpret_cast<whisper_context *>(handle);
     if (context == nullptr) return toBytes(env, "");
@@ -104,7 +104,7 @@ Java_com_hikmah_quran_stt_WhisperModel_nativeTranscribe(JNIEnv *env, jclass, jlo
 }
 
 JNIEXPORT void JNICALL
-Java_com_hikmah_quran_stt_WhisperModel_nativeFree(JNIEnv *, jclass, jlong handle) {
+Java_fi_mazhar_quran_ai_stt_WhisperModel_nativeFree(JNIEnv *, jclass, jlong handle) {
     auto *context = reinterpret_cast<whisper_context *>(handle);
     if (context == nullptr) return;
     std::lock_guard<std::mutex> lock(gMutex); // wait for a running transcription
