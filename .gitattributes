@@ -1,2 +1,14 @@
+# Text files are stored and checked out with LF on every platform.
+* text=auto eol=lf
+
+# Windows scripts need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files: never convert or diff as text.
+*.ttf binary
+*.jar binary
+*.png binary
+
 # Verbatim Tanzil text: never normalise line endings (checksum-tested).
 shared/src/commonMain/composeResources/files/quran-uthmani.txt -text
