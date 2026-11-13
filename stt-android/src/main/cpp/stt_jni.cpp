@@ -103,4 +103,12 @@ Java_com_hikmah_quran_stt_WhisperModel_nativeTranscribe(JNIEnv *env, jclass, jlo
     return toBytes(env, text);
 }
 
+JNIEXPORT void JNICALL
+Java_com_hikmah_quran_stt_WhisperModel_nativeFree(JNIEnv *, jclass, jlong handle) {
+    auto *context = reinterpret_cast<whisper_context *>(handle);
+    if (context == nullptr) return;
+    std::lock_guard<std::mutex> lock(gMutex); // wait for a running transcription
+    whisper_free(context);
+}
+
 } // extern "C"

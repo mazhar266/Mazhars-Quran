@@ -5,10 +5,12 @@ import android.util.Log
 import java.io.File
 
 /** whisper.cpp speech-to-text on the device's CPU. Audio is 16 kHz mono float PCM. */
-class WhisperModel private constructor(private val handle: Long) {
+class WhisperModel private constructor(private var handle: Long) {
 
     /** Blocking; call off the main thread. Returns null when no speech was recognised. */
+    @Synchronized
     fun transcribe(samples: FloatArray, language: String = "auto"): String? {
+        if (handle == 0L) return null // unloaded
         val start = SystemClock.elapsedRealtime()
         // Big cores only: on phones the efficiency cores slow inference down.
         val threads = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(2, 4)
@@ -19,6 +21,15 @@ class WhisperModel private constructor(private val handle: Long) {
         val seconds = samples.size / SAMPLE_RATE.toFloat()
         Log.i(TAG, "transcribed %.1f s of audio in %d ms: %s".format(seconds, SystemClock.elapsedRealtime() - start, text))
         return text
+    }
+
+    /** Frees the model's memory. Waits for a running transcription to finish first. */
+    @Synchronized
+    fun close() {
+        if (handle != 0L) {
+            nativeFree(handle)
+            handle = 0
+        }
     }
 
     companion object {
@@ -53,5 +64,6 @@ class WhisperModel private constructor(private val handle: Long) {
         @JvmStatic private external fun nativeTranscribe(
             handle: Long, samples: FloatArray, threads: Int, language: ByteArray, hint: ByteArray,
         ): ByteArray
+        @JvmStatic private external fun nativeFree(handle: Long)
     }
 }

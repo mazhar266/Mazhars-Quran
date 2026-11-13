@@ -53,4 +53,23 @@ class QuranText private constructor(private val surahs: List<List<String>>) {
     }
 }
 
-class SurahDisplay(val basmala: String?, val ayahs: List<String>)
+class SurahDisplay(val basmala: String?, val ayahs: List<String>) {
+    /**
+     * Groups consecutive ayahs into paragraphs of roughly [maxChars] characters,
+     * never splitting an ayah. Each paragraph is laid out as one flowing block
+     * of text; the limit only exists to keep long surahs fast to lay out.
+     */
+    fun paragraphs(maxChars: Int): List<IntRange> = buildList {
+        var start = 0
+        var size = 0
+        for ((index, ayah) in ayahs.withIndex()) {
+            if (size > 0 && size + ayah.length > maxChars) {
+                add(start until index)
+                start = index
+                size = 0
+            }
+            size += ayah.length
+        }
+        if (start < ayahs.size) add(start until ayahs.size)
+    }
+}

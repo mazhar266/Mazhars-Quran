@@ -71,6 +71,22 @@ Extra local setup, also under `.local/`:
 
 Measured on the x86_64 emulator with the synthetic clips: base transcribes a command in about 2.8 s and got 5 of 6 right (it wrote "Waqiah" as "Waichir"); small got 6 of 6 but takes about 11 s.
 
+## Settings and model downloads (as built)
+
+Both features are off by default; the app is then a plain reader with no command bar. Settings has two switches:
+
+- **AI commands** downloads the Qwen model (1.1 GB, Wi-Fi only) and shows the command bar.
+- **Voice input** downloads the Whisper base model (57 MB) and shows the mic button.
+
+`ModelFeatures` (androidApp) uses the system DownloadManager, so a download continues if the app is closed. Each file is pinned to an exact Hugging Face revision and verified by size and SHA-256 before use. Files live in the app's external files folder under `models/`. Switching a feature off unloads the model from memory and offers to delete the download. iOS has no implementation yet.
+
+## Reader rendering (as built)
+
+- Font: KFGQPC Hafs Uthmanic Script v18 (licence in `docs/licenses`). It replaced Amiri Quran.
+- Ayahs flow continuously and wrap at the screen edge, justified. Surahs longer than about 4000 characters are laid out as several paragraphs (never splitting an ayah) to keep layout fast.
+- The stored text is still Tanzil's. At display time two marks are remapped to the code points this font uses (`KfgqpcHafs.glyphs`): silent-letter circle U+06DF to U+0652, sukun U+0652 to U+06E1. Verse numbers are Arabic-Indic digits, which the font draws as the ornament.
+- Known difference from the printed Madinah mushaf: tanwin shapes and some pause marks follow Tanzil's text, not the Complex's own. Matching it exactly would mean bundling the Complex's text instead of Tanzil's.
+
 ## Milestones
 
 1. **Reader** — KMP project, bundled text, surah list, reading screen, RTL and font polish.

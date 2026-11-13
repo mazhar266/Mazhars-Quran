@@ -198,4 +198,13 @@ Java_com_hikmah_quran_llm_LlamaEngine_nativeComplete(JNIEnv *env, jclass, jlong 
                                  toString(env, grammar), maxTokens));
 }
 
+JNIEXPORT void JNICALL
+Java_com_hikmah_quran_llm_LlamaEngine_nativeFree(JNIEnv *, jclass, jlong handle) {
+    auto *engine = reinterpret_cast<Engine *>(handle);
+    if (engine == nullptr) return;
+    llama_free(engine->ctx);
+    llama_model_free(engine->model);
+    delete engine;
+}
+
 } // extern "C"

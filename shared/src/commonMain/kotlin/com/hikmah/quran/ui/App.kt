@@ -34,13 +34,16 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
@@ -55,7 +58,11 @@ import com.hikmah.quran.data.Surah
 import com.hikmah.quran.data.SurahCatalog
 import com.hikmah.quran.data.SurahDisplay
 import com.hikmah.quran.generated.Res
-import com.hikmah.quran.generated.amiri_quran
+import com.hikmah.quran.generated.kfgqpc_hafs
+import com.hikmah.quran.features.Feature
+import com.hikmah.quran.features.FeatureController
+import com.hikmah.quran.features.FeatureStatus
+import com.hikmah.quran.features.isOn
 import com.hikmah.quran.layout.Action
 import com.hikmah.quran.layout.AppTheme
 import com.hikmah.quran.layout.LayoutState
@@ -77,13 +84,16 @@ import org.jetbrains.compose.resources.Font
  * Root composable. Holds the [LayoutState] and is the single place where
  * [Action]s are applied; the voice pipeline will call the same `dispatch`.
  */
-@OptIn(ExperimentalResourceApi::class)
+@OptIn(ExperimentalResourceApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun App(
     storage: LayoutStorage = NoLayoutStorage,
     interpreter: CommandInterpreter = CommandInterpreter(),
     voice: VoiceInput? = null,
+    features: FeatureController? = null,
 ) {
+    val statuses = features?.status?.collectAsState()?.value ?: emptyMap()
+    var showSettings by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf(decodeLayout(storage.read())) }
     // Save whenever anything other than the open surah changes (undo included).
     val saved = encodeLayout(state)
@@ -168,25 +178,44 @@ fun App(
         }
     }
 
+    // With a feature controller the command bar only exists once the user turns
+    // something on; without one (iOS for now) typed commands are always offered.
+    val micReady = voice != null && (features == null || statuses[Feature.VOICE] == FeatureStatus.Ready)
+    val commandsOn = features == null || statuses[Feature.AI].isOn || statuses[Feature.VOICE].isOn
+    LaunchedEffect(micReady) {
+        if (!micReady && listening) {
+            voice?.cancel()
+            listening = false
+        }
+    }
+
+    BackHandler(enabled = showSettings || state.openSurah != null) {
+        if (showSettings) showSettings = false else dispatch(Action.CloseSurah)
+    }
+
     MaterialTheme(colorScheme = state.theme.colors()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = { CommandBar(thinking, listening, heard, ::runCommand, if (voice != null) ::toggleMic else null) },
+            bottomBar = {
+                if (commandsOn && !showSettings) {
+                    CommandBar(thinking, listening, heard, ::runCommand, if (micReady) ::toggleMic else null)
+                }
+            },
         ) { padding ->
             Surface(Modifier.fillMaxSize().padding(padding)) {
                 val open = state.openSurah?.let(SurahCatalog::byNumber)
-                if (open == null) {
-                    SurahList(state, ::dispatch)
-                } else {
-                    Reader(open, text, state.textSize, ::dispatch)
+                when {
+                    showSettings && features != null -> SettingsScreen(features, statuses) { showSettings = false }
+                    open == null -> SurahList(state, ::dispatch, if (features != null) ({ showSettings = true }) else null)
+                    else -> Reader(open, text, state.textSize, ::dispatch)
                 }
             }
         }
     }
 }
 
-/** Temporary stand-in for the microphone: type what you would say. */
+/** Where commands are typed or, with voice input on, spoken. */
 @Composable
 private fun CommandBar(
     thinking: Boolean,
@@ -245,7 +274,11 @@ private fun CommandBar(
 }
 
 @Composable
-private fun SurahList(state: LayoutState, dispatch: (Action, String?) -> Unit) {
+private fun SurahList(
+    state: LayoutState,
+    dispatch: (Action, String?) -> Unit,
+    onSettings: (() -> Unit)?,
+) {
     val pinned = state.sections.flatMap { it.surahIds }.toSet()
     val listState = rememberLazyListState()
     // Pinned sections live at the top; when they change, bring them into view
@@ -258,6 +291,13 @@ private fun SurahList(state: LayoutState, dispatch: (Action, String?) -> Unit) {
         }
     }
     LazyColumn(Modifier.fillMaxSize(), state = listState) {
+        if (onSettings != null) {
+            item(key = "settings") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onSettings) { Text("Settings") }
+                }
+            }
+        }
         state.sections.forEach { section ->
             item(key = "header-${section.name}") { SectionHeader(section.name) }
             items(section.surahIds, key = { "pin-$it" }) { id ->
@@ -274,7 +314,8 @@ private fun SurahList(state: LayoutState, dispatch: (Action, String?) -> Unit) {
         }
         item(key = "attribution") {
             Text(
-                "Quran text: Tanzil Project (Uthmani, v1.1) · tanzil.net\nFont: Amiri Quran (SIL Open Font License)",
+                "Quran text: Tanzil Project (Uthmani, v1.1) · tanzil.net\n" +
+                    "Font: KFGQPC Hafs Uthmanic Script · King Fahd Glorious Quran Printing Complex",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -384,44 +425,57 @@ private fun Notice(message: String) {
     }
 }
 
+/**
+ * The surah as continuous text: ayahs follow one another on the same line and
+ * wrap at the edge of the screen, as in a printed mushaf. Long surahs are laid
+ * out in several large paragraphs (see [SurahDisplay.paragraphs]) so that
+ * opening Al-Baqarah does not have to lay out the whole surah at once.
+ */
 @Composable
 private fun Ayahs(display: SurahDisplay, textSize: TextSize) {
     val size = textSize.readerSp()
     val font = quranFont()
+    val paragraphs = remember(display) {
+        display.paragraphs(PARAGRAPH_CHARS).map { range ->
+            range.joinToString(" ") { index ->
+                KfgqpcHafs.glyphs(display.ayahs[index]) + KfgqpcHafs.ayahEnd(index + 1)
+            }
+        }
+    }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
             display.basmala?.let { basmala ->
                 item(key = "basmala") {
                     Text(
-                        text = basmala,
+                        text = KfgqpcHafs.glyphs(basmala),
                         fontSize = size,
                         fontFamily = font,
-                        lineHeight = size * 1.9f,
+                        lineHeight = size * LINE_HEIGHT,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     )
                 }
             }
-            items(display.ayahs.size) { index ->
+            items(paragraphs.size) { index ->
                 Text(
-                    // The verse-number marker is decoration added by the UI, not part of the text.
-                    text = "${display.ayahs[index]} ﴿${arabicDigits(index + 1)}﴾",
+                    text = paragraphs[index],
                     fontSize = size,
                     fontFamily = font,
-                    lineHeight = size * 1.9f,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                    lineHeight = size * LINE_HEIGHT,
+                    textAlign = TextAlign.Justify,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 )
             }
         }
     }
 }
 
-/** Amiri Quran: designed for fully vocalised Uthmani text. */
-@Composable
-private fun quranFont(): FontFamily = FontFamily(Font(Res.font.amiri_quran))
+private const val PARAGRAPH_CHARS = 4000
+private const val LINE_HEIGHT = 2.0f
 
-private fun arabicDigits(number: Int): String =
-    number.toString().map { '٠' + (it - '0') }.joinToString("")
+/** KFGQPC Hafs: the typeface of the Madinah mushaf, from the King Fahd Complex. */
+@Composable
+private fun quranFont(): FontFamily = FontFamily(Font(Res.font.kfgqpc_hafs))
 
 private fun TextSize.listSp(): TextUnit = when (this) {
     TextSize.SMALL -> 18.sp

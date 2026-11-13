@@ -34,7 +34,9 @@ kotlin {
             api(libs.compose.foundation)
             api(libs.compose.material3)
             implementation(libs.compose.resources)
+            implementation(libs.compose.backhandler)
             implementation(libs.kotlinx.serialization.json)
+            api(libs.kotlinx.coroutines.core)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

@@ -60,7 +60,7 @@ class QuranTextTest {
     fun bundledFontHasAGlyphForEveryCharacterShown() {
         val font = java.awt.Font.createFont(
             java.awt.Font.TRUETYPE_FONT,
-            File("src/commonMain/composeResources/font/amiri_quran.ttf"),
+            File("src/commonMain/composeResources/font/kfgqpc_hafs.ttf"),
         )
         val text = assertNotNull(QuranText.parse(raw))
         val shown = buildSet {
@@ -68,10 +68,24 @@ class QuranTextTest {
                 text.ayahs(surah.number).forEach { addAll(it.asIterable()) }
                 addAll(surah.arabicName.asIterable())
             }
-            addAll("﴾﴿".asIterable()) // verse-number brackets
+            add('\u00A0') // keeps the verse ornament on the same line as the ayah
+            add('\u06E1') // the font's own sukun, used at display time
             addAll(('٠'..'٩')) // Arabic-Indic digits
         }
         val missing = shown.filterNot(font::canDisplay).map { "U+%04X".format(it.code) }
         assertEquals(emptyList(), missing)
+    }
+
+    @Test
+    fun paragraphsKeepEveryAyahInOrder() {
+        val text = assertNotNull(QuranText.parse(raw))
+        for (surah in SurahCatalog.all) {
+            val display = text.display(surah.number)
+            val paragraphs = display.paragraphs(maxChars = 4000)
+            assertEquals(display.ayahs.indices.toList(), paragraphs.flatMap { it.toList() }, surah.transliteration)
+        }
+        // Short surahs flow as a single block; the longest is split.
+        assertEquals(1, text.display(36).paragraphs(40_000).size)
+        assertEquals(true, text.display(2).paragraphs(4000).size > 10)
     }
 }

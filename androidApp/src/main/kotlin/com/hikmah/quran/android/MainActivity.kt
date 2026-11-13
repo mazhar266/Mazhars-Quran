@@ -7,7 +7,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import com.hikmah.quran.layout.SharedPrefsLayoutStorage
-import com.hikmah.quran.llm.LlamaEngine
 import com.hikmah.quran.stt.MicrophoneVoiceInput
 import com.hikmah.quran.ui.App
 import com.hikmah.quran.voice.CommandInterpreter
@@ -23,15 +22,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val storage = SharedPrefsLayoutStorage(this)
-        // Uses the on-device model if one is installed, otherwise keyword rules only.
-        val interpreter = CommandInterpreter(LlamaEngine.shared(this))
-        val voice = MicrophoneVoiceInput(this) {
+        // AI commands and voice input are off until switched on in Settings.
+        val features = ModelFeatures.get(this)
+        val interpreter = CommandInterpreter(features.llm)
+        val voice = MicrophoneVoiceInput(this, features::speechModel) {
             CompletableDeferred<Boolean>().also {
                 permissionAnswer = it
                 permissionRequest.launch(Manifest.permission.RECORD_AUDIO)
             }.await()
         }
-        MicrophoneVoiceInput.model(this) // start loading the speech model now
-        setContent { App(storage, interpreter, voice) }
+        setContent { App(storage, interpreter, voice, features) }
     }
 }

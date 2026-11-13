@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Only to download the optional AI and voice models when switched on in Settings. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Used only while the mic button is active; audio never leaves the device. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 

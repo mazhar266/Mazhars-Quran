@@ -10,26 +10,26 @@ import android.media.MediaRecorder
 import android.util.Log
 import com.hikmah.quran.voice.VoiceInput
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import kotlin.math.sqrt
 
 /**
  * Tap-to-talk voice input: records from the microphone between [start] and
- * [finish], then transcribes on-device with [WhisperModel]. Nothing is
- * recorded outside that window and no audio leaves the device or is stored.
+ * [finish], then transcribes on-device with the [WhisperModel] from [model].
+ * Nothing is recorded outside that window and no audio leaves the device or
+ * is stored.
  *
+ * [model] returns the loaded speech model, or null while voice input is off.
  * [requestPermission] asks the user for microphone access and returns the answer.
  */
 class MicrophoneVoiceInput(
     context: Context,
+    private val model: () -> WhisperModel?,
     private val requestPermission: suspend () -> Boolean,
 ) : VoiceInput {
     private val context = context.applicationContext
@@ -38,7 +38,7 @@ class MicrophoneVoiceInput(
 
     override suspend fun start(): Boolean {
         if (recording != null) return true
-        if (model(context).await() == null) return false
+        if (model() == null) return false
         val granted = context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         if (!granted && !requestPermission()) return false
 
@@ -79,13 +79,14 @@ class MicrophoneVoiceInput(
         val loudness = sqrt(samples.fold(0.0) { sum, s -> sum + s * s } / samples.size)
         Log.i(TAG, "recorded %.1f s, loudness %.4f".format(samples.size / WhisperModel.SAMPLE_RATE.toFloat(), loudness))
         if (loudness < SILENCE_LOUDNESS) return null // Whisper invents text for silence
-        val whisper = model(context).await() ?: return null
+        val whisper = model() ?: return null
         return withContext(Dispatchers.Default) { whisper.transcribe(samples) }
     }
 
     override fun cancel() {
         recording?.cancel()
         recording = null
+        synchronized(chunks) { chunks.clear() }
     }
 
     @SuppressLint("MissingPermission") // checked in start()
@@ -102,28 +103,10 @@ class MicrophoneVoiceInput(
         ).takeIf { it.state == AudioRecord.STATE_INITIALIZED }
     }.onFailure { Log.e(TAG, "microphone unavailable", it) }.getOrNull()
 
-    companion object {
-        private const val TAG = "QuranStt"
-        private const val MAX_SAMPLES = WhisperModel.SAMPLE_RATE * 15
-        private const val SILENCE_LOUDNESS = 0.003
-
-        private val scope = CoroutineScope(SupervisorJob())
-        private var loading: Deferred<WhisperModel?>? = null
-
-        /** Where a speech model is looked for: any `ggml-*.bin` in the app's private `files/models`. */
-        fun modelDirectory(context: Context): File = File(context.filesDir, "models")
-
-        /** Loads the speech model once per process, in the background. */
-        @Synchronized
-        fun model(context: Context): Deferred<WhisperModel?> = loading ?: scope.async(Dispatchers.IO) {
-            val file = modelDirectory(context)
-                .listFiles { f -> f.name.startsWith("ggml-") && f.extension == "bin" }?.minOrNull()
-            if (file == null) {
-                Log.i(TAG, "no speech model in ${modelDirectory(context)}; voice input disabled")
-                null
-            } else {
-                WhisperModel.load(file)
-            }
-        }.also { loading = it }
+    private companion object {
+        const val TAG = "QuranStt"
+        const val MAX_SAMPLES = WhisperModel.SAMPLE_RATE * 15
+        const val SILENCE_LOUDNESS = 0.003
+        val scope = CoroutineScope(SupervisorJob())
     }
 }
