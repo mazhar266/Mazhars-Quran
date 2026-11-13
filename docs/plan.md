@@ -89,7 +89,7 @@ Both features are off by default; the app is then a plain reader with no command
 
 ## Releases (as built)
 
-`.github/workflows/release.yml`: unit tests on every push and pull request; release APK built on pushes to `main`; a `v*` tag publishes a GitHub Release with the APK and its SHA-256. The tag sets `versionName`, the run number sets `versionCode`. No release key is set up: APKs are signed with the runner's debug key, so one build cannot be installed over another. The release build is not minified.
+`.github/workflows/release.yml` runs only on `v*` tags: unit tests, then the release APK, then a GitHub Release with the APK and its SHA-256. Nothing runs on ordinary commits or pull requests. The tag sets `versionName`, the run number sets `versionCode`. No release key is set up: APKs are signed with the runner's debug key, so one build cannot be installed over another. The release build is not minified.
 
 ## Text size (as built)
 

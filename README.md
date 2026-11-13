@@ -73,7 +73,7 @@ The model files are not part of the build. The app downloads them when a feature
 
 ## Releases
 
-The workflow in `.github/workflows/release.yml` runs the unit tests on every push and pull request, builds the APK on pushes to `main` (kept as a workflow artifact), and publishes a GitHub Release with the APK when a version tag is pushed:
+The workflow in `.github/workflows/release.yml` runs only when a version tag is pushed. It runs the unit tests, builds the APK and publishes a GitHub Release with the APK and its SHA-256 attached. Ordinary commits, branches and pull requests do not start it.
 
 ```bash
 git tag v1.0.0

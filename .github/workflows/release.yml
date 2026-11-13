@@ -1,21 +1,14 @@
-name: Build and release
+name: Release
 
-# - Every push and pull request: run the unit tests.
-# - Pushes to main: also build the APK and keep it as a workflow artifact.
-# - Tags like v1.0.0: also publish a GitHub Release with the APK attached.
+# Runs only when a version tag such as v1.0.0 is pushed: runs the unit tests,
+# builds the APK and publishes a GitHub Release with it. Ordinary commits,
+# branches and pull requests do not start it.
 on:
   push:
-    branches: [main]
     tags: ["v*"]
-  pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 env:
   LLAMA_CPP_TAG: b12360
@@ -38,10 +31,9 @@ jobs:
       - name: Run tests
         run: ./gradlew :shared:jvmTest --console=plain
 
-  apk:
-    name: Build APK
+  release:
+    name: Build APK and publish release
     needs: test
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -67,14 +59,11 @@ jobs:
           git clone --depth 1 --branch "$LLAMA_CPP_TAG" https://github.com/ggml-org/llama.cpp.git .local/llama.cpp
           git clone --depth 1 --branch "$WHISPER_CPP_TAG" https://github.com/ggml-org/whisper.cpp.git .local/whisper.cpp
 
+      # v1.2.3 -> 1.2.3
       - name: Work out the version
         id: version
         run: |
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            name="${GITHUB_REF_NAME#v}"
-          else
-            name="$(sed -n 's/^app = "\(.*\)"$/\1/p' gradle/libs.versions.toml)-dev.${GITHUB_RUN_NUMBER}"
-          fi
+          name="${GITHUB_REF_NAME#v}"
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "Building version $name (code $GITHUB_RUN_NUMBER)"
 
@@ -93,20 +82,12 @@ jobs:
           echo "file=$out" >> "$GITHUB_OUTPUT"
           ls -l "$out"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.apk.outputs.file }}
-          path: |
-            ${{ steps.apk.outputs.file }}
-            ${{ steps.apk.outputs.file }}.sha256
-          if-no-files-found: error
-
       - name: Publish GitHub Release
-        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           name: Mazhar's Quran ${{ steps.version.outputs.name }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             ${{ steps.apk.outputs.file }}
             ${{ steps.apk.outputs.file }}.sha256

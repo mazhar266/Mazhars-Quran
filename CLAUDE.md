@@ -89,7 +89,7 @@ Three things must stay in sync when the command vocabulary changes: the grammar 
 
 ### Versioning and release
 
-The app version is `app` in `gradle/libs.versions.toml`; CI overrides it with `-PappVersionName` (from a `v*` tag) and `-PappVersionCode` (run number). `.github/workflows/release.yml` tests on every push/PR, builds the release APK on `main`, and publishes a GitHub Release on a tag. It clones llama.cpp and whisper.cpp at the tags in its `env` block: keep those in step with the tags named in the two native `build.gradle.kts`/`CMakeLists.txt` files. The About section in Settings (`ui/AppInfo.kt`) shows the version passed in from `MainActivity`.
+The app version is `app` in `gradle/libs.versions.toml`; CI overrides it with `-PappVersionName` (from a `v*` tag) and `-PappVersionCode` (run number). `.github/workflows/release.yml` runs only when a `v*` tag is pushed (never on ordinary commits or PRs): it runs the unit tests, builds the release APK and publishes a GitHub Release. It clones llama.cpp and whisper.cpp at the tags in its `env` block: keep those in step with the tags named in the two native `build.gradle.kts`/`CMakeLists.txt` files. The About section in Settings (`ui/AppInfo.kt`) shows the version passed in from `MainActivity`.
 
 ### Platform notes
 
