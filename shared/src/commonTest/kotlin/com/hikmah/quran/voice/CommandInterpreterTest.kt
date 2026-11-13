@@ -58,7 +58,7 @@ class CommandInterpreterTest {
 
         assertEquals(Action.NoOp, run("""{"intent":"open","surahs":["xyz"],"section":null,"size":null,"theme":null}""").action)
         assertEquals(
-            Action.SetTextSize(TextSize.LARGE),
+            Action.SetTextSize(TextSize.XLARGE),
             run("""{"intent":"text_size","surahs":[],"section":null,"size":"BIGGER","theme":null}""").action,
         )
         assertEquals(
@@ -67,6 +67,25 @@ class CommandInterpreterTest {
         )
         assertEquals(Action.NoOp, run("""{"intent":"launch_missiles"}""").action)
         assertNull(LlmCommand.parse("I think the user wants..."))
+    }
+
+    @Test
+    fun textSizeRequestsMoveByTheRightAmount() {
+        fun size(text: String, from: TextSize = TextSize.MEDIUM) =
+            (CommandInterpreter.interpretWithRules(text, LayoutState(textSize = from)).action as Action.SetTextSize).size
+
+        assertEquals(TextSize.LARGE, size("a bit bigger"))
+        assertEquals(TextSize.XLARGE, size("make the font bigger"))
+        assertEquals(TextSize.XXLARGE, size("much bigger"))
+        assertEquals(TextSize.SMALL, size("slightly smaller"))
+        assertEquals(TextSize.HUGE, size("make it the biggest"))
+        assertEquals(TextSize.XXSMALL, size("smallest"))
+        // Complaints ask for the opposite of what they describe.
+        assertEquals(TextSize.XLARGE, size("the writing is tiny, I can barely see it"))
+        assertEquals(TextSize.XXSMALL, size("this is way too large for my screen"))
+        // Stops at the ends instead of wrapping or failing.
+        assertEquals(TextSize.HUGE, size("much bigger", from = TextSize.XXXLARGE))
+        assertEquals(TextSize.XXSMALL, size("smaller", from = TextSize.XXSMALL))
     }
 
     /**
@@ -87,6 +106,6 @@ class CommandInterpreterTest {
     }
 
     private companion object {
-        const val RULE_FLOOR = 75
+        const val RULE_FLOOR = 82
     }
 }

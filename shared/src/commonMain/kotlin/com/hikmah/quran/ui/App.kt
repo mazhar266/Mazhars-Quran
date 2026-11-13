@@ -139,7 +139,9 @@ fun App(
                 // Speech that isn't a command (talking, recitation) is ignored quietly.
                 result.action == Action.NoOp ->
                     if (!spoken) snackbar.showSnackbar("Sorry, I didn't understand that.")
-                result.confident -> dispatch(result.action, if (navigation) null else "Done: $label")
+                result.confident ->
+                    if (reduce(state, result.action) == state) snackbar.showSnackbar("That's already how it is.")
+                    else dispatch(result.action, if (navigation) null else "Done: $label")
                 else -> {
                     // Not sure (guessed intent or approximate surah name): ask first.
                     val answer = snackbar.showSnackbar(
@@ -206,8 +208,14 @@ fun App(
             Surface(Modifier.fillMaxSize().padding(padding)) {
                 val open = state.openSurah?.let(SurahCatalog::byNumber)
                 when {
-                    showSettings && features != null -> SettingsScreen(features, statuses) { showSettings = false }
-                    open == null -> SurahList(state, ::dispatch, if (features != null) ({ showSettings = true }) else null)
+                    showSettings -> SettingsScreen(
+                        features = features,
+                        statuses = statuses,
+                        textSize = state.textSize,
+                        onTextSize = { dispatch(Action.SetTextSize(it)) },
+                        onBack = { showSettings = false },
+                    )
+                    open == null -> SurahList(state, ::dispatch) { showSettings = true }
                     else -> Reader(open, text, state.textSize, ::dispatch)
                 }
             }
@@ -277,7 +285,7 @@ private fun CommandBar(
 private fun SurahList(
     state: LayoutState,
     dispatch: (Action, String?) -> Unit,
-    onSettings: (() -> Unit)?,
+    onSettings: () -> Unit,
 ) {
     val pinned = state.sections.flatMap { it.surahIds }.toSet()
     val listState = rememberLazyListState()
@@ -291,11 +299,9 @@ private fun SurahList(
         }
     }
     LazyColumn(Modifier.fillMaxSize(), state = listState) {
-        if (onSettings != null) {
-            item(key = "settings") {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onSettings) { Text("Settings") }
-                }
+        item(key = "settings") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onSettings) { Text("Settings") }
             }
         }
         state.sections.forEach { section ->
@@ -401,9 +407,10 @@ private fun Reader(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             TextButton(onClick = { dispatch(Action.CloseSurah, null) }) { Text("‹ Surahs") }
+            TextSizeButtons(textSize) { dispatch(Action.SetTextSize(it), null) }
             Text(
                 surah.arabicName,
-                fontSize = textSize.listSp(),
+                fontSize = 22.sp,
                 fontFamily = quranFont(),
                 modifier = Modifier.padding(end = 16.dp),
             )
@@ -462,7 +469,8 @@ private fun Ayahs(display: SurahDisplay, textSize: TextSize) {
                     fontSize = size,
                     fontFamily = font,
                     lineHeight = size * LINE_HEIGHT,
-                    textAlign = TextAlign.Justify,
+                    // With only two or three words per line, justifying leaves wide gaps.
+                    textAlign = if (textSize <= TextSize.XLARGE) TextAlign.Justify else TextAlign.Start,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 )
             }
@@ -475,20 +483,27 @@ private const val LINE_HEIGHT = 2.0f
 
 /** KFGQPC Hafs: the typeface of the Madinah mushaf, from the King Fahd Complex. */
 @Composable
-private fun quranFont(): FontFamily = FontFamily(Font(Res.font.kfgqpc_hafs))
+internal fun quranFont(): FontFamily = FontFamily(Font(Res.font.kfgqpc_hafs))
 
-private fun TextSize.listSp(): TextUnit = when (this) {
-    TextSize.SMALL -> 18.sp
-    TextSize.MEDIUM -> 22.sp
-    TextSize.LARGE -> 26.sp
-    TextSize.XLARGE -> 30.sp
-}
+/** Arabic surah names in the list, by [TextSize] step. */
+internal fun TextSize.listSp(): TextUnit = (18 + 2 * ordinal).sp
 
-private fun TextSize.readerSp(): TextUnit = when (this) {
-    TextSize.SMALL -> 22.sp
-    TextSize.MEDIUM -> 28.sp
-    TextSize.LARGE -> 34.sp
-    TextSize.XLARGE -> 42.sp
+/** Ayah text in the reader, by [TextSize] step: 18 sp to 52 sp, 28 sp by default. */
+internal fun TextSize.readerSp(): TextUnit = READER_SP[ordinal].sp
+
+private val READER_SP = intArrayOf(18, 21, 24, 28, 32, 36, 41, 46, 52)
+
+/** "A-" and "A+" buttons that move the text size one step. */
+@Composable
+internal fun TextSizeButtons(size: TextSize, onChange: (TextSize) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = { onChange(size.stepped(-1)) }, enabled = size != TextSize.entries.first()) {
+            Text("A−", fontSize = 15.sp)
+        }
+        TextButton(onClick = { onChange(size.stepped(1)) }, enabled = size != TextSize.entries.last()) {
+            Text("A+", fontSize = 21.sp)
+        }
+    }
 }
 
 private fun AppTheme.colors() = when (this) {

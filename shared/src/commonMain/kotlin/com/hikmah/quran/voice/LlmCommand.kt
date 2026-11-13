@@ -37,7 +37,7 @@ data class LlmCommand(
             names ::= "[]" | "[" str ("," str)* "]"
             optstr ::= "null" | str
             str ::= "\"" [^"\\\n]+ "\""
-            size ::= "null" | "\"SMALL\"" | "\"MEDIUM\"" | "\"LARGE\"" | "\"XLARGE\"" | "\"BIGGER\"" | "\"SMALLER\""
+            size ::= "null" | "\"BIT_BIGGER\"" | "\"BIGGER\"" | "\"MUCH_BIGGER\"" | "\"BIT_SMALLER\"" | "\"SMALLER\"" | "\"MUCH_SMALLER\"" | "\"SMALLEST\"" | "\"SMALL\"" | "\"MEDIUM\"" | "\"LARGE\"" | "\"LARGEST\""
             theme ::= "null" | "\"LIGHT\"" | "\"DARK\"" | "\"SEPIA\""
         """.trimIndent()
 
@@ -57,7 +57,7 @@ data class LlmCommand(
 
             surahs: the surah names exactly as written in the transcript, in order, one string each. Do not correct, translate or number them. Empty unless intent is pin, unpin or open.
             section: always null.
-            size: for "text_size" only: SMALL, MEDIUM, LARGE, XLARGE, or BIGGER / SMALLER for relative requests. Otherwise null.
+            size: for "text_size" only. Relative: BIGGER or SMALLER; BIT_BIGGER or BIT_SMALLER for "a bit", "a little", "slightly"; MUCH_BIGGER or MUCH_SMALLER for "much", "a lot", "way". Absolute: SMALLEST, SMALL, MEDIUM, LARGE, LARGEST. A complaint describes how the text looks now, so ask for the opposite: "too small", "tiny", "hard to read" mean BIGGER; "too big", "too large" mean SMALLER. Otherwise null.
             theme: for "theme" only: LIGHT, DARK or SEPIA. Otherwise null.
 
             Examples:
@@ -74,7 +74,13 @@ data class LlmCommand(
             switch to night mode
             {"intent":"theme","surahs":[],"section":null,"size":null,"theme":"DARK"}
             biggest font please
-            {"intent":"text_size","surahs":[],"section":null,"size":"XLARGE","theme":null}
+            {"intent":"text_size","surahs":[],"section":null,"size":"LARGEST","theme":null}
+            just a little bigger
+            {"intent":"text_size","surahs":[],"section":null,"size":"BIT_BIGGER","theme":null}
+            the words are tiny, i can hardly see them
+            {"intent":"text_size","surahs":[],"section":null,"size":"BIGGER","theme":null}
+            the writing is way too big
+            {"intent":"text_size","surahs":[],"section":null,"size":"MUCH_SMALLER","theme":null}
             my eyes hurt, the screen is so bright
             {"intent":"theme","surahs":[],"section":null,"size":null,"theme":"DARK"}
             i want a white background

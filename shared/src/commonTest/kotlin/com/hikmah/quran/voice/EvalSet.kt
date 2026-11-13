@@ -14,7 +14,7 @@ import com.hikmah.quran.layout.TextSize
 
 /**
  * Transcripts as speech-to-text might produce them, with the action the app
- * should take. Evaluated from the default layout (medium text, list open).
+ * should take. Evaluated from the default layout (medium text, the 4th of 9 sizes, list open).
  * The same set scores the keyword rules and, later, each candidate model.
  */
 object EvalSet {
@@ -87,15 +87,21 @@ object EvalSet {
         "show all surahs" gives CloseSurah,
 
         // Text size (from MEDIUM)
-        "make the text bigger" gives SetTextSize(TextSize.LARGE),
-        "the letters are too small" gives SetTextSize(TextSize.LARGE),
-        "increase font size" gives SetTextSize(TextSize.LARGE),
-        "make it smaller" gives SetTextSize(TextSize.SMALL),
-        "text is too big" gives SetTextSize(TextSize.SMALL),
-        "use the largest text" gives SetTextSize(TextSize.XLARGE),
+        "make the text bigger" gives SetTextSize(TextSize.XLARGE),
+        "the letters are too small" gives SetTextSize(TextSize.XLARGE),
+        "increase font size" gives SetTextSize(TextSize.XLARGE),
+        "make it smaller" gives SetTextSize(TextSize.XSMALL),
+        "text is too big" gives SetTextSize(TextSize.XSMALL),
+        "use the largest text" gives SetTextSize(TextSize.HUGE),
         "medium text size please" gives SetTextSize(TextSize.MEDIUM),
-        "i can't read this, it's tiny" gives SetTextSize(TextSize.LARGE),
-        "zoom in" gives SetTextSize(TextSize.LARGE),
+        "i can't read this, it's tiny" gives SetTextSize(TextSize.XLARGE),
+        "zoom in" gives SetTextSize(TextSize.XLARGE),
+        "make the font a bit bigger" gives SetTextSize(TextSize.LARGE),
+        "a little smaller please" gives SetTextSize(TextSize.SMALL),
+        "slightly larger text" gives SetTextSize(TextSize.LARGE),
+        "make the font much bigger" gives SetTextSize(TextSize.XXLARGE),
+        "make the font the biggest" gives SetTextSize(TextSize.HUGE),
+        "i want the smallest font" gives SetTextSize(TextSize.XXSMALL),
 
         // Theme
         "switch to dark mode" gives SetTheme(AppTheme.DARK),

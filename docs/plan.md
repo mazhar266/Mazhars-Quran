@@ -80,6 +80,14 @@ Both features are off by default; the app is then a plain reader with no command
 
 `ModelFeatures` (androidApp) uses the system DownloadManager, so a download continues if the app is closed. Each file is pinned to an exact Hugging Face revision and verified by size and SHA-256 before use. Files live in the app's external files folder under `models/`. Switching a feature off unloads the model from memory and offers to delete the download. iOS has no implementation yet.
 
+## Text size (as built)
+
+Nine steps (18 to 52 sp for ayah text, 28 sp by default), saved with the layout. Changed three ways:
+
+- A- / A+ buttons in Settings (with a preview) and in the reader header: one step each.
+- Commands, handled by the keyword rules first and the model otherwise. "a bit / a little / slightly" moves one step, plain "bigger" or "smaller" two, "much / a lot / way" three; "biggest" and "smallest" jump to the ends; "medium" returns to the default. Complaints mean the opposite of what they describe ("it's tiny" asks for bigger).
+- Asking for more at either end replies that nothing changed.
+
 ## Reader rendering (as built)
 
 - Font: KFGQPC Hafs Uthmanic Script v18 (licence in `docs/licenses`). It replaced Amiri Quran.

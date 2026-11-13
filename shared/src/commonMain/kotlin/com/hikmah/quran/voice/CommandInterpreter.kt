@@ -83,6 +83,26 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
             val sure = matches.all { it.exact }
 
             if (ids.isEmpty()) {
+                // Text size: how far to move depends on the wording ("a bit bigger", "much smaller").
+                // A complaint describes the current state: "it's tiny" asks for bigger, not for tiny.
+                val up = has(
+                    "bigger", "larger", "increase", "zoom in", "too small", "enlarge", "can't read", "cant read",
+                    "tiny", "hard to read", "hard to see", "barely see", "hardly see", "can't see", "cant see",
+                )
+                val down = has("smaller", "decrease", "reduce", "zoom out", "too big", "too large")
+                val slight = has("a bit", "bit", "a little", "little", "slightly", "a tad", "a touch", "thora", "thoda")
+                val strong = has("much", "a lot", "lot", "way", "far", "bohat", "bahut")
+                val amount = if (slight) "BIT_" else if (strong) "MUCH_" else ""
+                val size = when {
+                    has("biggest", "largest", "maximum", "max", "huge", "extra large", "as big as possible") -> "LARGEST"
+                    has("smallest", "minimum", "as small as possible") -> "SMALLEST"
+                    up -> amount + "BIGGER"
+                    down -> amount + "SMALLER"
+                    has("medium", "normal size", "normal text", "default size") -> "MEDIUM"
+                    has("large text", "large font", "big text", "big font") -> "LARGE"
+                    has("small text", "small font") -> "SMALL"
+                    else -> null
+                }
                 return when {
                     has("reset", "default layout", "start over", "clear my pins", "clear all pins", "clear pins") ->
                         Interpretation(Action.ResetLayout, confident = true)
@@ -90,13 +110,7 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
                     has("sepia", "warm", "paper", "cream") -> Interpretation(Action.SetTheme(AppTheme.SEPIA), true)
                     has("light mode", "light theme", "light background", "day mode", "white") ->
                         Interpretation(Action.SetTheme(AppTheme.LIGHT), true)
-                    has("extra large", "huge", "largest", "biggest", "maximum") -> sized("XLARGE", state)
-                    has("bigger", "larger", "increase", "zoom in", "too small", "enlarge", "can't read", "cant read") ->
-                        sized("BIGGER", state)
-                    has("smaller", "decrease", "reduce", "zoom out", "too big", "too large") -> sized("SMALLER", state)
-                    has("smallest", "small text", "small font") -> sized("SMALL", state)
-                    has("medium", "normal size", "normal text") -> sized("MEDIUM", state)
-                    has("large text", "large font", "big text", "big font") -> sized("LARGE", state)
+                    size != null -> sized(size, state)
                     has("go back", "back to list", "back to the list", "close", "surah list", "all surahs", "home") ->
                         Interpretation(Action.CloseSurah, confident = true)
                     else -> NONE
@@ -145,12 +159,26 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
             }
         }
 
+        /**
+         * Resolves a size request (the vocabulary the model and the rules share)
+         * against the current size. Relative requests move one, two or three of
+         * the nine steps; the Settings buttons move one.
+         */
         private fun sized(request: String, state: LayoutState): Interpretation {
-            val sizes = TextSize.entries
+            val current = state.textSize
             val target = when (request) {
-                "BIGGER" -> sizes.getOrElse(state.textSize.ordinal + 1) { sizes.last() }
-                "SMALLER" -> sizes.getOrElse(state.textSize.ordinal - 1) { sizes.first() }
-                else -> sizes.firstOrNull { it.name == request } ?: return NONE
+                "BIT_BIGGER" -> current.stepped(1)
+                "BIGGER" -> current.stepped(2)
+                "MUCH_BIGGER" -> current.stepped(3)
+                "BIT_SMALLER" -> current.stepped(-1)
+                "SMALLER" -> current.stepped(-2)
+                "MUCH_SMALLER" -> current.stepped(-3)
+                "SMALLEST" -> TextSize.entries.first()
+                "SMALL" -> TextSize.XSMALL
+                "MEDIUM" -> TextSize.MEDIUM
+                "LARGE" -> TextSize.XLARGE
+                "LARGEST" -> TextSize.entries.last()
+                else -> return NONE
             }
             return Interpretation(Action.SetTextSize(target), confident = true)
         }
@@ -164,7 +192,7 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
                 is Action.ReorderSection -> "Reorder ${action.section}"
                 is Action.OpenSurah -> "Open ${names(listOf(action.id))}"
                 Action.CloseSurah -> "Back to the list"
-                is Action.SetTextSize -> "Text size: ${action.size.name.lowercase()}"
+                is Action.SetTextSize -> "Text size ${action.size.level} of ${TextSize.entries.size}"
                 is Action.SetTheme -> "Theme: ${action.theme.name.lowercase()}"
                 Action.ResetLayout -> "Reset layout"
                 Action.NoOp -> "Nothing to do"
