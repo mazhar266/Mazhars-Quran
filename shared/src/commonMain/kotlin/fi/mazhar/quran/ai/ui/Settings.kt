@@ -37,6 +37,7 @@ internal fun SettingsScreen(
     statuses: Map<Feature, FeatureStatus>,
     textSize: TextSize,
     onTextSize: (TextSize) -> Unit,
+    appVersion: String?,
     onBack: () -> Unit,
 ) {
     // Set while asking whether a large download may use mobile data.
@@ -71,13 +72,39 @@ internal fun SettingsScreen(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
-            if (features != null) Text(
-                "Both are optional. Without them this is a plain reader: nothing is downloaded and the " +
-                    "microphone is never used.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp),
-            )
+            if (features != null) {
+                Text(
+                    "Both are optional. Without them this is a plain reader: nothing is downloaded and the " +
+                        "microphone is never used.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp),
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+            About(appVersion)
+        }
+    }
+}
+
+@Composable
+private fun About(appVersion: String?) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 24.dp)) {
+        Text(AppInfo.NAME, style = MaterialTheme.typography.titleMedium)
+        if (appVersion != null) {
+            Text("Version $appVersion", style = MaterialTheme.typography.bodyMedium, color = muted)
+        }
+
+        Text(AppInfo.AUTHOR, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 16.dp))
+        for (line in AppInfo.AUTHOR_CREDENTIALS) {
+            Text(line, style = MaterialTheme.typography.bodyMedium, color = muted)
+        }
+
+        Text("Credits", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 20.dp))
+        for ((what, who) in AppInfo.CREDITS) {
+            Text(what, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+            Text(who, style = MaterialTheme.typography.bodySmall, color = muted)
         }
     }
 }

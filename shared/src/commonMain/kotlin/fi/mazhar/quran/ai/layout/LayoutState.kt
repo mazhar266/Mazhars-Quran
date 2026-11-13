@@ -32,4 +32,8 @@ data class LayoutState(
     val theme: AppTheme = AppTheme.LIGHT,
     /** Surah currently open in the reader, or null for the list. */
     val openSurah: Int? = null,
+    /** Ayah of [openSurah] the reader should show and highlight, if one was asked for. */
+    val openAyah: Int? = null,
+    /** Counts "go to" requests, so asking for the same ayah again scrolls back to it. */
+    val jump: Int = 0,
 )

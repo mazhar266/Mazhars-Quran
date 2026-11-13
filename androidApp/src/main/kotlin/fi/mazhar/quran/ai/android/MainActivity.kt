@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
                 permissionRequest.launch(Manifest.permission.RECORD_AUDIO)
             }.await()
         }
-        setContent { App(storage, interpreter, voice, features) }
+        val version = packageManager.getPackageInfo(packageName, 0).versionName
+        setContent { App(storage, interpreter, voice, features, version) }
     }
 }

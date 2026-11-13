@@ -2,6 +2,7 @@ package fi.mazhar.quran.ai.voice
 
 import fi.mazhar.quran.ai.layout.Action
 import fi.mazhar.quran.ai.layout.Action.CloseSurah
+import fi.mazhar.quran.ai.layout.Action.GoToAyah
 import fi.mazhar.quran.ai.layout.Action.NoOp
 import fi.mazhar.quran.ai.layout.Action.OpenSurah
 import fi.mazhar.quran.ai.layout.Action.PinSurahs
@@ -80,7 +81,20 @@ object EvalSet {
         "افتح سورة الكهف" gives OpenSurah(18),
         "سورة يس" gives OpenSurah(36),
 
+        // Go to an ayah
+        "go to surah fatiha ayat 3" gives OpenSurah(1, 3),
+        "open surah baqarah ayah 255" gives OpenSurah(2, 255),
+        "surah yaseen verse 40" gives OpenSurah(36, 40),
+        "go to 2:255" gives OpenSurah(2, 255),
+        "show me the third verse of surah mulk" gives OpenSurah(67, 3),
+        "go to ayah 255" gives GoToAyah(255),
+        "take me to verse 12" gives GoToAyah(12),
+        "go to ayah twenty one" gives GoToAyah(21),
+        "jump to the 5th ayah" gives GoToAyah(5),
+
         // Close
+        "go to the main screen" gives CloseSurah,
+        "take me to the home screen" gives CloseSurah,
         "go back" gives CloseSurah,
         "back to the list" gives CloseSurah,
         "close this surah" gives CloseSurah,

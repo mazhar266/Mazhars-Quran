@@ -88,6 +88,36 @@ class CommandInterpreterTest {
         assertEquals(TextSize.XXSMALL, size("smaller", from = TextSize.XXSMALL))
     }
 
+    @Test
+    fun ayahReferencesAreUnderstood() {
+        fun action(text: String) = CommandInterpreter.interpretWithRules(text, state).action
+
+        assertEquals(Action.OpenSurah(1, 3), action("go to surah fatiha ayat 3"))
+        assertEquals(Action.OpenSurah(2, 255), action("al baqarah ayah number 255"))
+        assertEquals(Action.OpenSurah(2, 255), action("open 2:255"))
+        assertEquals(Action.OpenSurah(18, 10), action("surah kahf the tenth verse"))
+        assertEquals(Action.GoToAyah(255), action("go to ayah 255"))
+        assertEquals(Action.GoToAyah(121), action("verse one hundred and twenty one"))
+        assertEquals(Action.GoToAyah(3), action("3rd ayah"))
+        // A surah number is not an ayah number, and a time is not a reference.
+        assertEquals(Action.OpenSurah(36), action("open surah 36"))
+        assertEquals(Action.NoOp, action("it is 10:30 now"))
+        assertEquals(Action.CloseSurah, action("go to the main screen"))
+    }
+
+    @Test
+    fun modelCanAskForAnAyah() {
+        fun run(json: String, heard: String) = CommandInterpreter.fromLlm(LlmCommand.parse(json)!!, state, heard).action
+        assertEquals(
+            Action.OpenSurah(67, 3),
+            run("""{"intent":"open","surahs":["mulk"],"section":null,"size":null,"theme":null,"ayah":3}""", "third verse of mulk"),
+        )
+        assertEquals(
+            Action.GoToAyah(10),
+            run("""{"intent":"open","surahs":[],"section":null,"size":null,"theme":null,"ayah":10}""", "jump to the tenth verse"),
+        )
+    }
+
     /**
      * Scores the keyword fallback on the eval set. The floor guards against
      * regressions; it is not a quality bar, and the rules were written with
@@ -106,6 +136,6 @@ class CommandInterpreterTest {
     }
 
     private companion object {
-        const val RULE_FLOOR = 82
+        const val RULE_FLOOR = 93
     }
 }

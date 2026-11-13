@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
@@ -36,16 +37,23 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -72,11 +80,15 @@ import fi.mazhar.quran.ai.layout.decodeLayout
 import fi.mazhar.quran.ai.layout.encodeLayout
 import fi.mazhar.quran.ai.layout.TextSize
 import fi.mazhar.quran.ai.layout.reduce
+import fi.mazhar.quran.ai.layout.rejection
 import fi.mazhar.quran.ai.voice.CommandInterpreter
 import fi.mazhar.quran.ai.voice.VoiceInput
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.Font
 
@@ -91,6 +103,7 @@ fun App(
     interpreter: CommandInterpreter = CommandInterpreter(),
     voice: VoiceInput? = null,
     features: FeatureController? = null,
+    appVersion: String? = null,
 ) {
     val statuses = features?.status?.collectAsState()?.value ?: emptyMap()
     var showSettings by remember { mutableStateOf(false) }
@@ -133,15 +146,21 @@ fun App(
                 thinking = false
             }
             val label = CommandInterpreter.describe(result.action)
-            val navigation = result.action is Action.OpenSurah || result.action == Action.CloseSurah
+            val navigation = result.action is Action.OpenSurah || result.action is Action.GoToAyah ||
+                result.action == Action.CloseSurah
+            // E.g. "ayah 300" in a surah with 286, or "go to ayah 5" with no surah open.
+            val problem = rejection(state, result.action)
             snackbar.currentSnackbarData?.dismiss()
             when {
                 // Speech that isn't a command (talking, recitation) is ignored quietly.
                 result.action == Action.NoOp ->
                     if (!spoken) snackbar.showSnackbar("Sorry, I didn't understand that.")
-                result.confident ->
-                    if (reduce(state, result.action) == state) snackbar.showSnackbar("That's already how it is.")
-                    else dispatch(result.action, if (navigation) null else "Done: $label")
+                result.confident -> {
+                    val unchanged = reduce(state, result.action) == state
+                    if (!unchanged) dispatch(result.action, if (navigation) null else "Done: $label")
+                    if (problem != null) snackbar.showSnackbar(problem)
+                    else if (unchanged) snackbar.showSnackbar("That's already how it is.")
+                }
                 else -> {
                     // Not sure (guessed intent or approximate surah name): ask first.
                     val answer = snackbar.showSnackbar(
@@ -213,10 +232,11 @@ fun App(
                         statuses = statuses,
                         textSize = state.textSize,
                         onTextSize = { dispatch(Action.SetTextSize(it)) },
+                        appVersion = appVersion,
                         onBack = { showSettings = false },
                     )
                     open == null -> SurahList(state, ::dispatch) { showSettings = true }
-                    else -> Reader(open, text, state.textSize, ::dispatch)
+                    else -> Reader(open, text, state.textSize, state.openAyah, state.jump, ::dispatch)
                 }
             }
         }
@@ -398,6 +418,8 @@ private fun Reader(
     surah: Surah,
     text: TextLoad,
     textSize: TextSize,
+    targetAyah: Int?,
+    jump: Int,
     dispatch: (Action, String?) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
@@ -420,7 +442,8 @@ private fun Reader(
             TextLoad.Loading -> Notice("Loading…")
             // Never show text that failed verification.
             TextLoad.Failed -> Notice("The Quran text could not be verified, so it is not shown.")
-            is TextLoad.Ready -> Ayahs(remember(surah.number) { text.text.display(surah.number) }, textSize)
+            is TextLoad.Ready ->
+                Ayahs(remember(surah.number) { text.text.display(surah.number) }, textSize, targetAyah, jump)
         }
     }
 }
@@ -439,18 +462,33 @@ private fun Notice(message: String) {
  * opening Al-Baqarah does not have to lay out the whole surah at once.
  */
 @Composable
-private fun Ayahs(display: SurahDisplay, textSize: TextSize) {
+private fun Ayahs(display: SurahDisplay, textSize: TextSize, targetAyah: Int?, jump: Int) {
     val size = textSize.readerSp()
     val font = quranFont()
-    val paragraphs = remember(display) {
-        display.paragraphs(PARAGRAPH_CHARS).map { range ->
-            range.joinToString(" ") { index ->
-                KfgqpcHafs.glyphs(display.ayahs[index]) + KfgqpcHafs.ayahEnd(index + 1)
-            }
-        }
+    val paragraphs = remember(display) { display.paragraphs(PARAGRAPH_CHARS).map { FlowParagraph(display, it) } }
+    val highlight = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    val listState = remember(display) { LazyListState() }
+    // Text layout of each paragraph that is on screen, needed to find the line an ayah starts on.
+    val layouts = remember(display) { mutableStateMapOf<Int, TextLayoutResult>() }
+    val firstParagraphItem = if (display.basmala != null) 1 else 0
+    val margin = with(LocalDensity.current) { 12.dp.roundToPx() }
+
+    // Bring the requested ayah to the top. `jump` changes on every request,
+    // so asking for the same ayah again after scrolling away works too.
+    LaunchedEffect(display, jump) {
+        val ayahIndex = (targetAyah ?: return@LaunchedEffect) - 1
+        val paragraph = paragraphs.indexOfFirst { ayahIndex in it.ayahs }
+        if (paragraph < 0) return@LaunchedEffect
+        val item = firstParagraphItem + paragraph
+        listState.scrollToItem(item)
+        val layout = withTimeoutOrNull(2000) { snapshotFlow { layouts[paragraph] }.filterNotNull().first() }
+            ?: return@LaunchedEffect
+        val line = layout.getLineForOffset(paragraphs[paragraph].start(ayahIndex))
+        listState.animateScrollToItem(item, (layout.getLineTop(line).toInt() - margin).coerceAtLeast(0))
     }
+
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), state = listState) {
             display.basmala?.let { basmala ->
                 item(key = "basmala") {
                     Text(
@@ -464,16 +502,45 @@ private fun Ayahs(display: SurahDisplay, textSize: TextSize) {
                 }
             }
             items(paragraphs.size) { index ->
+                val paragraph = paragraphs[index]
+                val target = targetAyah?.minus(1)?.takeIf { it in paragraph.ayahs }
                 Text(
-                    text = paragraphs[index],
+                    text = remember(paragraph, target, highlight) { paragraph.annotated(target, highlight) },
                     fontSize = size,
                     fontFamily = font,
                     lineHeight = size * LINE_HEIGHT,
                     // With only two or three words per line, justifying leaves wide gaps.
                     textAlign = if (textSize <= TextSize.XLARGE) TextAlign.Justify else TextAlign.Start,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    onTextLayout = { layouts[index] = it },
+                    // No top padding, so a line's offset in the text is its offset in the list item.
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 )
             }
+        }
+    }
+}
+
+/** One flowing block of consecutive ayahs ([ayahs] are 0-based indices), with where each starts in [text]. */
+private class FlowParagraph(display: SurahDisplay, val ayahs: IntRange) {
+    private val starts = IntArray(ayahs.count())
+    val text: String = buildString {
+        for ((position, index) in ayahs.withIndex()) {
+            if (position > 0) append(' ')
+            starts[position] = length
+            append(KfgqpcHafs.glyphs(display.ayahs[index]))
+            append(KfgqpcHafs.ayahEnd(index + 1))
+        }
+    }
+
+    fun start(ayahIndex: Int): Int = starts[ayahIndex - ayahs.first]
+
+    /** The paragraph's text, with the ayah at [highlighted] (if it is in this paragraph) tinted. */
+    fun annotated(highlighted: Int?, color: Color): AnnotatedString = buildAnnotatedString {
+        append(text)
+        if (highlighted != null) {
+            val from = start(highlighted)
+            val to = if (highlighted < ayahs.last) start(highlighted + 1) - 1 else text.length
+            addStyle(SpanStyle(background = color), from, to)
         }
     }
 }

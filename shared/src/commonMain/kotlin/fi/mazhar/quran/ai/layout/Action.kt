@@ -21,8 +21,13 @@ sealed interface Action {
     @Serializable @SerialName("reorder_section")
     data class ReorderSection(val section: String, val ids: List<Int>) : Action
 
+    /** Opens a surah, optionally scrolled to [ayah]. */
     @Serializable @SerialName("open_surah")
-    data class OpenSurah(val id: Int) : Action
+    data class OpenSurah(val id: Int, val ayah: Int? = null) : Action
+
+    /** Scrolls the surah that is already open to [ayah]. */
+    @Serializable @SerialName("go_to_ayah")
+    data class GoToAyah(val ayah: Int) : Action
 
     @Serializable @SerialName("close_surah")
     data object CloseSurah : Action

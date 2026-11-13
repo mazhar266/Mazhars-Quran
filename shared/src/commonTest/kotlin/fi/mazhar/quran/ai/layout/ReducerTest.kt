@@ -72,4 +72,39 @@ class ReducerTest {
         assertEquals(Action.NoOp, Action.fromJson("sure! here is your layout"))
         assertEquals(Action.NoOp, Action.fromJson("""{"type":"delete_everything"}"""))
     }
+
+    @Test
+    fun openSurahAtAnAyahAndMoveWithinIt() {
+        var state = reduce(empty, Action.OpenSurah(2, 255))
+        assertEquals(2, state.openSurah)
+        assertEquals(255, state.openAyah)
+
+        val jumps = state.jump
+        state = reduce(state, Action.GoToAyah(10))
+        assertEquals(10, state.openAyah)
+        // Asking for the same ayah again must still count as a new request.
+        assertEquals(jumps + 2, reduce(state, Action.GoToAyah(10)).jump)
+
+        assertNull(reduce(state, Action.CloseSurah).openAyah)
+    }
+
+    @Test
+    fun impossibleAyahsAreIgnoredAndExplained() {
+        // Al-Fatihah has 7 ayahs: the surah still opens, at the top.
+        val opened = reduce(empty, Action.OpenSurah(1, 9))
+        assertEquals(1, opened.openSurah)
+        assertNull(opened.openAyah)
+        assertEquals("Al-Fatihah has 7 ayahs.", rejection(empty, Action.OpenSurah(1, 9)))
+
+        assertEquals(opened, reduce(opened, Action.GoToAyah(8)))
+        assertEquals(empty, reduce(empty, Action.GoToAyah(3)))
+        assertEquals("Open a surah first, or say which surah.", rejection(empty, Action.GoToAyah(3)))
+        assertNull(rejection(opened, Action.GoToAyah(7)))
+    }
+
+    @Test
+    fun readerPositionIsNotSaved() {
+        val state = reduce(empty, Action.OpenSurah(2, 255))
+        assertEquals(empty, decodeLayout(encodeLayout(state)))
+    }
 }

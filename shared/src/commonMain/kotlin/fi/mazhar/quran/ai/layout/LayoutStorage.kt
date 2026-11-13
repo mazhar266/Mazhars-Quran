@@ -22,7 +22,7 @@ private val layoutJson = Json { ignoreUnknownKeys = true }
 
 /** The reader position is not saved: the app always starts on the list. */
 fun encodeLayout(state: LayoutState): String =
-    layoutJson.encodeToString(LayoutState.serializer(), state.copy(openSurah = null))
+    layoutJson.encodeToString(LayoutState.serializer(), state.copy(openSurah = null, openAyah = null, jump = 0))
 
 /** Missing, corrupt or out-of-date data falls back to the default layout. */
 fun decodeLayout(json: String?): LayoutState {
@@ -34,5 +34,5 @@ fun decodeLayout(json: String?): LayoutState {
         val ids = section.surahIds.filter { SurahCatalog.isValid(it) && seen.add(it) }
         if (ids.isEmpty() || section.name.isBlank()) null else section.copy(surahIds = ids)
     }
-    return saved.copy(sections = sections, openSurah = null)
+    return saved.copy(sections = sections, openSurah = null, openAyah = null, jump = 0)
 }

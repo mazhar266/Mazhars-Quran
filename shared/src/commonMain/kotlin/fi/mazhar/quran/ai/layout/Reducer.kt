@@ -35,12 +35,23 @@ fun reduce(state: LayoutState, action: Action): LayoutState = when (action) {
     )
 
     is Action.OpenSurah ->
-        if (SurahCatalog.isValid(action.id)) state.copy(openSurah = action.id) else state
+        if (!SurahCatalog.isValid(action.id)) state else state.copy(
+            openSurah = action.id,
+            // An ayah the surah does not have is ignored: the surah opens at the top.
+            openAyah = action.ayah?.takeIf { it in 1..SurahCatalog.all[action.id - 1].ayahCount },
+            jump = state.jump + 1,
+        )
 
-    Action.CloseSurah -> state.copy(openSurah = null)
+    is Action.GoToAyah -> {
+        val surah = state.openSurah?.let(SurahCatalog::byNumber)
+        if (surah == null || action.ayah !in 1..surah.ayahCount) state
+        else state.copy(openAyah = action.ayah, jump = state.jump + 1)
+    }
+
+    Action.CloseSurah -> state.copy(openSurah = null, openAyah = null)
     is Action.SetTextSize -> state.copy(textSize = action.size)
     is Action.SetTheme -> state.copy(theme = action.theme)
-    Action.ResetLayout -> LayoutState(openSurah = state.openSurah)
+    Action.ResetLayout -> LayoutState(openSurah = state.openSurah, openAyah = state.openAyah, jump = state.jump)
     Action.NoOp -> state
 }
 
@@ -49,4 +60,23 @@ private fun List<Int>.validIds(): List<Int> = distinct().filter(SurahCatalog::is
 private fun List<Section>.without(ids: List<Int>): List<Section> {
     val remove = ids.toSet()
     return map { it.copy(surahIds = it.surahIds - remove) }.filter { it.surahIds.isNotEmpty() }
+}
+
+/**
+ * Why [action] cannot be carried out as asked in [state], in words for the
+ * user, or null if it can. The reducer itself stays total: it ignores the
+ * impossible part.
+ */
+fun rejection(state: LayoutState, action: Action): String? {
+    val (surah, ayah) = when (action) {
+        is Action.OpenSurah -> SurahCatalog.byNumber(action.id) to action.ayah
+        is Action.GoToAyah ->
+            (state.openSurah?.let(SurahCatalog::byNumber) ?: return "Open a surah first, or say which surah.") to action.ayah
+        else -> return null
+    }
+    return if (surah != null && ayah != null && ayah !in 1..surah.ayahCount) {
+        "${surah.transliteration} has ${surah.ayahCount} ayahs."
+    } else {
+        null
+    }
 }

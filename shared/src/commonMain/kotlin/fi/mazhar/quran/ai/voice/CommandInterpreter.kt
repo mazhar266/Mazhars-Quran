@@ -37,6 +37,9 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
             LlmCommand.parse(engine.complete(LlmCommand.SYSTEM_PROMPT, utterance, LlmCommand.GRAMMAR))
         }.getOrNull() ?: return byRules
         val byModel = fromLlm(command, state, utterance)
+        // The rules saw a surah but no ayah word ("read surah number 112"); the model
+        // sometimes takes that number for an ayah. The rules' reading is the safer one.
+        if (byModel.action is Action.GoToAyah && byRules.action is Action.OpenSurah) return byRules
         // The rules had a different guess: two readings of the same words, so ask.
         val disputed = byRules.action != Action.NoOp && byModel.action != Action.NoOp &&
             byRules.action != byModel.action
@@ -63,7 +66,13 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
             val action = when (command.intent) {
                 "pin" -> if (ids.isEmpty()) Action.NoOp else Action.PinSurahs(ids, sectionFor(utterance))
                 "unpin" -> if (ids.isEmpty()) Action.NoOp else Action.UnpinSurahs(ids)
-                "open" -> ids.firstOrNull()?.let(Action::OpenSurah) ?: Action.NoOp
+                "open" -> when {
+                    ids.isNotEmpty() -> Action.OpenSurah(ids.first(), command.ayah)
+                    // An ayah on its own means "in the surah that is open".
+                    command.ayah != null && copied.isEmpty() ->
+                        return Interpretation(Action.GoToAyah(command.ayah), confident = true)
+                    else -> Action.NoOp
+                }
                 "close" -> return Interpretation(Action.CloseSurah, confident = true)
                 "text_size" -> return sized(command.size.orEmpty(), state)
                 "theme" -> return AppTheme.entries.firstOrNull { it.name == command.theme }
@@ -81,6 +90,16 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
             val matches = SurahMatcher.findAll(utterance)
             val ids = matches.map { it.surah }
             val sure = matches.all { it.exact }
+
+            // "surah fatiha ayat 3", "2:255", or just "ayah 255" for the surah that is open.
+            // "10:30" is far more often a time than Yunus 30: the colon form needs a navigation word.
+            val navigating = has("go to", "open", "show", "read", "take me", "jump", "surah", "sura", "ayah", "ayat", "verse") &&
+                !has("am", "pm", "time", "clock", "alarm", "o'clock")
+            findAyahReference(utterance)?.takeIf { it.surah == null || navigating }?.let { reference ->
+                val surah = reference.surah?.takeIf(SurahCatalog::isValid) ?: ids.firstOrNull()
+                val action = if (surah != null) Action.OpenSurah(surah, reference.ayah) else Action.GoToAyah(reference.ayah)
+                return Interpretation(action, confident = sure)
+            }
 
             if (ids.isEmpty()) {
                 // Text size: how far to move depends on the wording ("a bit bigger", "much smaller").
@@ -111,7 +130,11 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
                     has("light mode", "light theme", "light background", "day mode", "white") ->
                         Interpretation(Action.SetTheme(AppTheme.LIGHT), true)
                     size != null -> sized(size, state)
-                    has("go back", "back to list", "back to the list", "close", "surah list", "all surahs", "home") ->
+                    has(
+                        "go back", "back to list", "back to the list", "close", "surah list", "all surahs", "home",
+                        "main screen", "home screen", "main page", "home page", "main menu", "first screen",
+                        "start screen", "list of surahs",
+                    ) ->
                         Interpretation(Action.CloseSurah, confident = true)
                     else -> NONE
                 }
@@ -190,7 +213,9 @@ class CommandInterpreter(private val llm: LlmEngine? = null) {
                 is Action.PinSurahs -> "Pin ${names(action.ids)} to ${action.section}"
                 is Action.UnpinSurahs -> "Unpin ${names(action.ids)}"
                 is Action.ReorderSection -> "Reorder ${action.section}"
-                is Action.OpenSurah -> "Open ${names(listOf(action.id))}"
+                is Action.OpenSurah ->
+                    "Open ${names(listOf(action.id))}" + (action.ayah?.let { ", ayah $it" } ?: "")
+                is Action.GoToAyah -> "Go to ayah ${action.ayah}"
                 Action.CloseSurah -> "Back to the list"
                 is Action.SetTextSize -> "Text size ${action.size.level} of ${TextSize.entries.size}"
                 is Action.SetTheme -> "Theme: ${action.theme.name.lowercase()}"
