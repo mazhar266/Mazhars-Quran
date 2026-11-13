@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Single-colour version for Android 13+ themed icons; the system tints it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateY="6">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M48.5,24.5h11v11h-11z" />
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M54,22.2L61.8,30L54,37.8L46.2,30z" />
+        <!-- Pages as outlines with a gap at the spine. -->
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M52.6,44.9C46.6,41.4 37.6,40.4 28,42.2L28,69C37.6,67.2 46.6,68 52.6,71.2z" />
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M55.4,44.9C61.4,41.4 70.4,40.4 80,42.2L80,69C70.4,67.2 61.4,68 55.4,71.2z" />
+    </group>
+</vector>
